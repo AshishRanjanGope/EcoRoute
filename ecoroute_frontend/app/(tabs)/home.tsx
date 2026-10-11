@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowUpDown, Bell, ChevronDown, ChevronRight, Leaf, Map, Minus, Plus, Search, User } from 'lucide-react-native';
 import { Typography } from '../../components/ui/Typography';
+import { Avatar } from '../../components/ui/Avatar';
 import { GoogleMapView, MapCoordinate } from '../../components/map/GoogleMapView';
 import { PlacePickerModal } from '../../components/map/PlacePickerModal';
 import { PlaceItem } from '../../lib/api';
@@ -63,26 +64,26 @@ export default function HomeScreen() {
       >
         {/* 1. Header matching Screen 1 */}
         <View style={styles.header}>
-          {/* User profile avatar on left (green circle with 'A' / user icon) */}
+          {/* User profile avatar on left (custom green silhouette for guest/default) */}
           <Pressable
             onPress={() => router.push('/(tabs)/profile' as any)}
             accessibilityRole="button"
             accessibilityLabel="Profile"
-            style={styles.avatarBtn}
           >
-            <Typography style={{ fontSize: 16, fontWeight: '800', color: '#1E6B3F' }}>
-              A
-            </Typography>
+            <Avatar size={40} />
           </Pressable>
 
-          {/* Title in center with leaf icon */}
+          {/* Title in center with logo from login page */}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Typography style={{ fontSize: 20, fontWeight: '800', color: '#18231D' }}>
-              EcoRoute
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={{ width: 28, height: 28, marginRight: 8 }}
+              resizeMode="contain"
+            />
+            <Typography style={{ fontSize: 20, fontWeight: '800' }}>
+              <Typography style={{ fontSize: 20, fontWeight: '800', color: '#279A57' }}>Eco</Typography>
+              <Typography style={{ fontSize: 20, fontWeight: '800', color: '#0D4822' }}>Route</Typography>
             </Typography>
-            <View style={{ marginLeft: 6 }}>
-              <Leaf size={18} color="#218653" />
-            </View>
           </View>
 
           {/* Notification bell on right with green dot badge */}

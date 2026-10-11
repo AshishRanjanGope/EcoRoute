@@ -1,4 +1,4 @@
-import { View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Image, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -38,6 +38,12 @@ export default function LoginScreen() {
               <ArrowLeft size={24} color="#18231D" />
             </Button>
             
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={{ width: 56, height: 56, marginBottom: 16 }}
+              resizeMode="contain"
+            />
+
             <Typography variant="h1" style={{ marginBottom: 6 }}>Welcome Back</Typography>
             <Typography variant="body" style={{ color: '#69766E', marginBottom: 28 }}>
               Log in to continue your green journey in Pune.

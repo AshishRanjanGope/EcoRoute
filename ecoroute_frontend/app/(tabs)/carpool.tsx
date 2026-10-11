@@ -1,10 +1,13 @@
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
+import { Avatar } from '../../components/ui/Avatar';
 import { Search, Plus, ShieldCheck, Car, Coins } from 'lucide-react-native';
 
 export default function CarpoolScreen() {
+  const router = useRouter();
   const rides = [
     {
       id: '1',
@@ -44,9 +47,22 @@ export default function CarpoolScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAF8' }} edges={['top']}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-        {/* Header */}
+        {/* Header with Account Avatar */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <Typography variant="h2">EcoPool</Typography>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Pressable
+              onPress={() => router.push('/(tabs)/profile' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+              style={{ marginRight: 12 }}
+            >
+              <Avatar size={40} />
+            </Pressable>
+            <Typography variant="h2">
+              <Typography variant="h2" style={{ color: '#279A57', fontWeight: '800' }}>Eco</Typography>
+              <Typography variant="h2" style={{ color: '#0D4822', fontWeight: '800' }}>Pool</Typography>
+            </Typography>
+          </View>
           <View style={{
             flexDirection: 'row',
             alignItems: 'center',

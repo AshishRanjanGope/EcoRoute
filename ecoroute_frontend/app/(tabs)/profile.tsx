@@ -2,7 +2,8 @@ import { View, ScrollView, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Typography } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
-import { User, Settings, LogOut, Wallet, Moon, Globe, ChevronRight } from 'lucide-react-native';
+import { Avatar } from '../../components/ui/Avatar';
+import { Settings, LogOut, Wallet, Moon, Globe, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect } from 'react';
@@ -12,11 +13,26 @@ export default function ProfileScreen() {
   const router = useRouter();
   const systemColorScheme = useColorScheme();
   const [isDarkTheme, setIsDarkTheme] = useState(systemColorScheme === 'dark');
+  const [userName, setUserName] = useState('Anish Raj');
+  const [userRole, setUserRole] = useState('Pune Commuter • Joined 2026');
 
   useEffect(() => {
     AsyncStorage.getItem('theme').then((t) => {
       if (t === 'dark') setIsDarkTheme(true);
       else if (t === 'light') setIsDarkTheme(false);
+    });
+    AsyncStorage.getItem('user_session').then((raw) => {
+      if (raw) {
+        try {
+          const session = JSON.parse(raw);
+          if (session.isGuest) {
+            setUserName('Guest User');
+            setUserRole('Guest Account • EcoRoute Pune');
+          } else if (session.name) {
+            setUserName(session.name);
+          }
+        } catch {}
+      }
     });
   }, []);
 
@@ -27,7 +43,8 @@ export default function ProfileScreen() {
     Alert.alert('Theme Saved', 'Preference saved to storage.');
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await AsyncStorage.removeItem('user_session');
     router.replace('/(auth)/welcome' as any);
   };
 
@@ -52,20 +69,10 @@ export default function ProfileScreen() {
           shadowRadius: 6,
           elevation: 1
         }}>
-          <View style={{
-            width: 56,
-            height: 56,
-            backgroundColor: '#E8F5EE',
-            borderRadius: 28,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 14
-          }}>
-            <User size={30} color="#218653" />
-          </View>
+          <Avatar size={56} style={{ marginRight: 14 }} />
           <View style={{ flex: 1 }}>
-            <Typography variant="h3">Anish Raj</Typography>
-            <Typography variant="caption" style={{ color: '#69766E', marginTop: 2 }}>Pune Commuter • Joined 2026</Typography>
+            <Typography variant="h3">{userName}</Typography>
+            <Typography variant="caption" style={{ color: '#69766E', marginTop: 2 }}>{userRole}</Typography>
           </View>
         </View>
 
