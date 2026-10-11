@@ -1,10 +1,13 @@
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Typography } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
+import { Avatar } from '../../components/ui/Avatar';
 import { Share, Leaf, TreeDeciduous, IndianRupee, Flame, Award } from 'lucide-react-native';
 
 export default function ImpactScreen() {
+  const router = useRouter();
   const weekData = [
     { day: 'Mon', val: 45, kg: '2.1' },
     { day: 'Tue', val: 75, kg: '3.6' },
@@ -18,11 +21,21 @@ export default function ImpactScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAF8' }} edges={['top']}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-        {/* Header */}
+        {/* Header with Account Avatar */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <View>
-            <Typography variant="h2">My Impact</Typography>
-            <Typography variant="caption" style={{ color: '#218653', fontWeight: '700' }}>Lifetime Savings Tracker</Typography>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Pressable
+              onPress={() => router.push('/(tabs)/profile' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+              style={{ marginRight: 12 }}
+            >
+              <Avatar size={40} />
+            </Pressable>
+            <View>
+              <Typography variant="h2">My Impact</Typography>
+              <Typography variant="caption" style={{ color: '#218653', fontWeight: '700' }}>Lifetime Savings Tracker</Typography>
+            </View>
           </View>
           <Button 
             variant="ghost" 

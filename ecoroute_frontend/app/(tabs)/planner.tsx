@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Sparkles, Sprout, User } from 'lucide-react-native';
 
 import { Typography } from '../../components/ui/Typography';
+import { Avatar } from '../../components/ui/Avatar';
 import { EcoLeafLogo } from '../../components/planner/EcoLeafLogo';
 import { MonthCalendar } from '../../components/planner/MonthCalendar';
 import { MonthYearPicker } from '../../components/planner/MonthYearPicker';
@@ -159,21 +160,13 @@ export default function PlannerScreen() {
 
 
 
-          {/* Profile Avatar icon in light green circle */}
+          {/* Profile Avatar icon */}
           <Pressable
             onPress={() => router.push('/(tabs)/profile')}
             accessibilityRole="button"
             accessibilityLabel="Go to Profile"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: C.tintSoft,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
           >
-            <User size={20} color={C.primary} />
+            <Avatar size={40} />
           </Pressable>
         </View>
 
