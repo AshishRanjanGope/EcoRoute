@@ -18,17 +18,14 @@ export function PlacePickerModal({ visible, title, onSelectPlace, onClose }: Pro
 
   useEffect(() => {
     if (!visible) return;
+
     setLoading(true);
     const timer = setTimeout(() => {
-      searchPlaces(query)
-        .then((items) => {
-          setResults(items);
-          setLoading(false);
-        })
-        .catch(() => {
-          setLoading(false);
-        });
-    }, 250);
+      searchPlaces(query).then((items) => {
+        setResults(items);
+        setLoading(false);
+      });
+    }, 200);
 
     return () => clearTimeout(timer);
   }, [visible, query]);
@@ -81,16 +78,13 @@ export function PlacePickerModal({ visible, title, onSelectPlace, onClose }: Pro
             >
               <Search size={18} color="#69766E" style={{ marginRight: 8 }} />
               <TextInput
-                placeholder="Search place, area or landmark..."
+                placeholder="Search any city, area, landmark or street..."
                 placeholderTextColor="#8C9A91"
                 value={query}
                 onChangeText={setQuery}
                 style={{ flex: 1, fontSize: 14, color: '#18231D' }}
                 autoFocus
               />
-              {loading && (
-                <ActivityIndicator size="small" color="#1E6B3F" style={{ marginRight: 8 }} />
-              )}
               {query ? (
                 <Pressable onPress={() => setQuery('')} hitSlop={8}>
                   <X size={16} color="#69766E" />
@@ -98,6 +92,16 @@ export function PlacePickerModal({ visible, title, onSelectPlace, onClose }: Pro
               ) : null}
             </View>
           </View>
+
+          {/* Loading Indicator */}
+          {loading && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }}>
+              <ActivityIndicator size="small" color="#1E6B3F" style={{ marginRight: 8 }} />
+              <Typography style={{ fontSize: 13, color: '#69766E' }}>
+                Searching locations...
+              </Typography>
+            </View>
+          )}
 
           {/* Results List */}
           <ScrollView
@@ -147,37 +151,14 @@ export function PlacePickerModal({ visible, title, onSelectPlace, onClose }: Pro
               </View>
             </Pressable>
 
-            {/* Empty state when no places match */}
-            {!loading && results.length === 0 && query.trim() ? (
-              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-                <Typography style={{ fontSize: 13, color: '#69766E', textAlign: 'center' }}>
-                  No exact matches found for "{query}".
+            {/* Empty state when no matches */}
+            {!loading && query.trim().length > 0 && results.length === 0 && (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Typography style={{ fontSize: 13, color: '#69766E' }}>
+                  No matching locations found for "{query}".
                 </Typography>
-                <Pressable
-                  onPress={() => {
-                    onSelectPlace({
-                      id: `custom-${Date.now()}`,
-                      name: query.trim(),
-                      address: `${query.trim()}, India`,
-                      lat: 18.5204,
-                      lng: 73.8567,
-                    });
-                    onClose();
-                  }}
-                  style={{
-                    marginTop: 12,
-                    backgroundColor: '#EAF5EE',
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderRadius: 20,
-                  }}
-                >
-                  <Typography style={{ fontSize: 13, fontWeight: '700', color: '#1E6B3F' }}>
-                    Use "{query.trim()}" anyway
-                  </Typography>
-                </Pressable>
               </View>
-            ) : null}
+            )}
 
             {results.map((p) => (
               <Pressable

@@ -93,14 +93,28 @@ export class RoutingService {
 
   /**
    * Fallback for driving if OSRM service is unreachable
-   * Uses urban road circuity factor (~1.28) and average urban speed (22 km/h)
+   * Uses realistic Indian road circuity factors and highway speeds
    */
   private getFallbackDrivingMetrics(origin: Coordinate, destination: Coordinate): RouteMatrixResult {
     const haversineKm = calculateHaversineDistanceKm(origin, destination);
-    const distanceKm = Number((haversineKm * 1.28).toFixed(2));
-    // Average urban driving speed 22 km/h
-    const averageSpeedKmh = 22;
-    const durationMins = Math.max(2, Math.round((distanceKm / averageSpeedKmh) * 60));
+
+    let distanceKm: number;
+    let durationMins: number;
+
+    if (haversineKm > 60) {
+      // Long-distance / Intercity highway corridor in India
+      // Highway circuity factor ~1.325 (e.g. 539.8 km Haversine -> 715 km driving distance)
+      distanceKm = Number((haversineKm * 1.325).toFixed(1));
+      // Average long-distance highway speed in India ~48.7 km/h with tolls, terrain, and city approaches
+      // 715 km -> ~881 mins (14 hr 41 min, matching Google Maps)
+      const avgHighwaySpeedKmh = 48.7;
+      durationMins = Math.max(30, Math.round((distanceKm / avgHighwaySpeedKmh) * 60));
+    } else {
+      // Urban / Suburban travel
+      distanceKm = Number((haversineKm * 1.28).toFixed(2));
+      const avgUrbanSpeedKmh = 24;
+      durationMins = Math.max(2, Math.round((distanceKm / avgUrbanSpeedKmh) * 60));
+    }
 
     return {
       distanceKm,

@@ -44,7 +44,12 @@ export function GoogleMapView({ origin, destination, onSelectCoordinate, onLocat
       return `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&origin=${originQuery}&destination=${destQuery}&mode=driving${modeParam}`;
     }
 
-    return `https://maps.google.com/maps?saddr=${originCoords}&daddr=${destCoords}&z=13${layerParam}&output=embed`;
+    const dLat = Math.abs(origin.lat - destination.lat);
+    const dLng = Math.abs(origin.lng - destination.lng);
+    const maxDelta = Math.max(dLat, dLng);
+    const zoom = maxDelta > 5 ? 6 : maxDelta > 1 ? 8 : maxDelta > 0.2 ? 11 : 13;
+
+    return `https://maps.google.com/maps?saddr=${originCoords}&daddr=${destCoords}&z=${zoom}${layerParam}&output=embed`;
   }, [origin, destination, apiKey, mapType]);
 
   // Mobile HTML container to embed real Google Maps inside native WebView cleanly

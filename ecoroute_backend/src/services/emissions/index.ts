@@ -5,6 +5,8 @@ export const EMISSION_FACTORS: Record<TravelMode, number> = {
   bicycle: 0,
   metro: 0.03, // kg CO2 per passenger-km
   'local-train': 0.03,
+  train: 0.026, // Indian Railways electric train: super low carbon footprint
+  bus: 0.038,
   carpool: 0.045, // 4 riders in a car
   'auto-rickshaw': 0.07, // CNG
   motorbike: 0.065,

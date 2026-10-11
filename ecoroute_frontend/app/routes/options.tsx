@@ -1,27 +1,41 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
-  ArrowUpDown,
   Bike,
   Bus,
+  Calendar,
   Car,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
   Footprints,
+  Info,
   Leaf,
+  MapPin,
   Pencil,
+  Search,
   SlidersHorizontal,
   Train,
   User,
+  X,
 } from 'lucide-react-native';
 import { Typography } from '../../components/ui/Typography';
-import { fetchRouteOptions, RouteOption } from '../../lib/api';
+import {
+  calculateDistanceKm,
+  fetchRouteOptions,
+  fetchTrainsBetween,
+  fetchTrainSchedule,
+  formatDuration,
+  RouteOption,
+  TrainBetweenStations,
+  TrainSchedule,
+} from '../../lib/api';
 
-type FilterMode = 'all' | 'public_transport' | 'carpool' | 'bike' | 'walk';
+type FilterMode = 'all' | 'train' | 'public_transport' | 'carpool' | 'bike' | 'walk';
 
 export default function RouteOptionsScreen() {
   const router = useRouter();
@@ -31,6 +45,17 @@ export default function RouteOptionsScreen() {
   const destName = String(params.destName || 'Tatibandh, Raipur');
   const initialTravellers = Number(params.travellers || 1);
 
+  const originLat = Number(params.originLat) || 21.2497;
+  const originLng = Number(params.originLng) || 81.6050;
+  const destLat = Number(params.destLat) || 21.2581;
+  const destLng = Number(params.destLng) || 81.5645;
+
+  // Accurate dynamic distance & duration calculation
+  const { distanceKm: calculatedDist, drivingDurationMins: calculatedDur } = calculateDistanceKm(
+    { lat: originLat, lng: originLng },
+    { lat: destLat, lng: destLng }
+  );
+
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterMode>('all');
@@ -39,26 +64,61 @@ export default function RouteOptionsScreen() {
   const [selectedRoute, setSelectedRoute] = useState<RouteOption | null>(null);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
 
+  // Train Explorer Modal states
+  const [trainModalOpen, setTrainModalOpen] = useState(false);
+  const [trainQuery, setTrainQuery] = useState('17005');
+  const [selectedTrainSchedule, setSelectedTrainSchedule] = useState<TrainSchedule | null>(null);
+  const [trainScheduleLoading, setTrainScheduleLoading] = useState(false);
+  const [trainsBetweenList, setTrainsBetweenList] = useState<TrainBetweenStations[]>([]);
+  const [trainTab, setTrainTab] = useState<'between' | 'schedule'>('between');
+
   useEffect(() => {
     setLoading(true);
     fetchRouteOptions(
-      { name: originName, lat: Number(params.originLat), lng: Number(params.originLng) },
-      { name: destName, lat: Number(params.destLat), lng: Number(params.destLng) },
+      { name: originName, lat: originLat, lng: originLng },
+      { name: destName, lat: destLat, lng: destLng },
       sortBy === 'best' ? 'efficiency' : sortBy
     ).then((res) => {
       setRoutes(res);
       setLoading(false);
     });
-  }, [originName, destName, sortBy]);
+  }, [originName, destName, originLat, originLng, destLat, destLng, sortBy]);
+
+  // Load trains between stations when train modal opens
+  useEffect(() => {
+    if (trainModalOpen) {
+      fetchTrainsBetween(originName, destName).then((t) => {
+        setTrainsBetweenList(t);
+        if (t.length > 0 && !selectedTrainSchedule) {
+          handleLoadTrainSchedule(t[0].trainNumber);
+        }
+      });
+    }
+  }, [trainModalOpen, originName, destName]);
+
+  const handleLoadTrainSchedule = async (num: string) => {
+    setTrainScheduleLoading(true);
+    const sched = await fetchTrainSchedule(num);
+    setSelectedTrainSchedule(sched);
+    setTrainScheduleLoading(false);
+  };
 
   // Filter routes based on selected mode pill
   const filteredRoutes = routes.filter((r) => {
     if (activeFilter === 'all') return true;
+    if (activeFilter === 'train') {
+      return (
+        r.mode === 'train' ||
+        r.mode === 'local-train' ||
+        r.name.toLowerCase().includes('train') ||
+        r.name.toLowerCase().includes('exp')
+      );
+    }
     if (activeFilter === 'public_transport') {
       return (
         r.mode === 'public_transport' ||
         r.mode === 'metro' ||
-        r.mode === 'local-train' ||
+        r.mode === 'bus' ||
         r.name.toLowerCase().includes('bus') ||
         r.name.toLowerCase().includes('metro')
       );
@@ -76,6 +136,8 @@ export default function RouteOptionsScreen() {
 
   const getLegIcon = (mode: string) => {
     switch (mode) {
+      case 'train':
+        return <Train size={18} color="#1E6B3F" />;
       case 'bus':
         return <Bus size={18} color="#18231D" />;
       case 'carpool':
@@ -89,17 +151,26 @@ export default function RouteOptionsScreen() {
     }
   };
 
-  const getHeaderIcon = (name: string) => {
+  const getHeaderIcon = (mode: string, name: string) => {
     const n = name.toLowerCase();
+    if (mode === 'train' || n.includes('train') || n.includes('exp')) {
+      return <Train size={22} color="#1E6B3F" />;
+    }
     if (n.includes('carpool') || n.includes('pool')) return <Car size={22} color="#1E6B3F" />;
     if (n.includes('bike')) return <Bike size={22} color="#1E6B3F" />;
     if (n.includes('metro')) return <Train size={22} color="#1E6B3F" />;
     return <Bus size={22} color="#1E6B3F" />;
   };
 
+  // Dynamic header metrics: derived from active routes or accurate road distance
+  const displayedDist = routes.length > 0 ? routes[0].distanceKm : calculatedDist;
+  const displayedDur = routes.length > 0 ? routes[0].durationMins : calculatedDur;
+  const durationText = formatDuration(displayedDur);
+  const distanceText = displayedDist >= 1 ? `${displayedDist} km` : `${Math.round(displayedDist * 1000)} m`;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAF8' }} edges={['top']}>
-      {/* 1. Header matching Screen 2 */}
+      {/* 1. Top Header */}
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -123,7 +194,7 @@ export default function RouteOptionsScreen() {
         contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 10, paddingBottom: 48 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* 2. Route Summary Card */}
+        {/* 2. Route Summary Card (Dynamic Accurate Distance & Duration) */}
         <View style={styles.summaryCard}>
           <View style={{ flex: 1 }}>
             {/* Origin */}
@@ -151,8 +222,9 @@ export default function RouteOptionsScreen() {
                 <Typography style={{ fontSize: 15, fontWeight: '700', color: '#18231D' }}>
                   {destName}
                 </Typography>
-                <Typography style={{ fontSize: 12, color: '#69766E', marginTop: 1 }}>
-                  22 min • 7.4 km
+                {/* Dynamically calculated accurate duration & distance */}
+                <Typography style={{ fontSize: 13, color: '#1E6B3F', fontWeight: '700', marginTop: 2 }}>
+                  {durationText} • {distanceText}
                 </Typography>
               </View>
             </View>
@@ -168,7 +240,31 @@ export default function RouteOptionsScreen() {
           </Pressable>
         </View>
 
-        {/* 3. Traveller & Sort row */}
+        {/* 3. Indian Railways Live Schedule Quick Banner */}
+        <Pressable
+          onPress={() => setTrainModalOpen(true)}
+          style={styles.trainScheduleBanner}
+        >
+          <View style={styles.trainIconBubble}>
+            <Train size={18} color="#1E6B3F" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Typography style={{ fontSize: 13, fontWeight: '700', color: '#143825' }}>
+              Indian Railways Train Schedules
+            </Typography>
+            <Typography style={{ fontSize: 11, color: '#4E6A58', marginTop: 1 }}>
+              View all trains across India, timetables & stops
+            </Typography>
+          </View>
+          <View style={styles.viewSchedulePill}>
+            <Typography style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>
+              Search
+            </Typography>
+            <ChevronRight size={13} color="#FFFFFF" style={{ marginLeft: 2 }} />
+          </View>
+        </Pressable>
+
+        {/* 4. Traveller & Sort row */}
         <View style={styles.filterRow}>
           {/* Traveller pill */}
           <View style={styles.filterPill}>
@@ -192,7 +288,7 @@ export default function RouteOptionsScreen() {
           </Pressable>
         </View>
 
-        {/* 4. Mode Filter Pills (Horizontal Scroll) */}
+        {/* 5. Mode Filter Pills (Includes Train, Public Transport, Carpool, Bike, Walk) */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -210,6 +306,26 @@ export default function RouteOptionsScreen() {
               ]}
             >
               All
+            </Typography>
+          </Pressable>
+
+          {/* Train */}
+          <Pressable
+            onPress={() => setActiveFilter('train')}
+            style={[styles.modePill, activeFilter === 'train' && styles.modePillActive]}
+          >
+            <Train
+              size={16}
+              color={activeFilter === 'train' ? '#FFFFFF' : '#18231D'}
+              style={{ marginRight: 6 }}
+            />
+            <Typography
+              style={[
+                styles.modePillText,
+                activeFilter === 'train' && styles.modePillTextActive,
+              ]}
+            >
+              Train
             </Typography>
           </Pressable>
 
@@ -294,9 +410,36 @@ export default function RouteOptionsScreen() {
           </Pressable>
         </ScrollView>
 
-        {/* 5. Route Option Cards (Matching mockup exactly) */}
+        {/* Loading Indicator */}
+        {loading && (
+          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#1E6B3F" />
+            <Typography style={{ fontSize: 13, color: '#69766E', marginTop: 8 }}>
+              Finding best eco-routes & train schedules...
+            </Typography>
+          </View>
+        )}
+
+        {/* 6. Route Option Cards */}
+        {!loading && filteredRoutes.length === 0 && (
+          <View style={{ padding: 24, alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 20 }}>
+            <Info size={28} color="#69766E" />
+            <Typography style={{ fontSize: 15, fontWeight: '700', color: '#18231D', marginTop: 8 }}>
+              No routes found for this mode
+            </Typography>
+            <Typography style={{ fontSize: 13, color: '#69766E', marginTop: 4, textAlign: 'center' }}>
+              Try selecting "All" or "Train" for intercity connections.
+            </Typography>
+          </View>
+        )}
+
         {filteredRoutes.map((route, idx) => {
           const isRecommended = route.recommended || idx === 0;
+          const formattedDuration = formatDuration(route.durationMins);
+          const isTrainRoute =
+            route.mode === 'train' ||
+            route.mode === 'local-train' ||
+            route.name.toLowerCase().includes('train');
 
           return (
             <View
@@ -308,9 +451,12 @@ export default function RouteOptionsScreen() {
             >
               {/* Header: Mode Name + Carbon Badge */}
               <View style={styles.cardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  {getHeaderIcon(route.name)}
-                  <Typography style={{ fontSize: 16, fontWeight: '700', color: '#18231D', marginLeft: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 8 }}>
+                  {getHeaderIcon(route.mode, route.name)}
+                  <Typography
+                    style={{ fontSize: 16, fontWeight: '700', color: '#18231D', marginLeft: 8, flex: 1 }}
+                    numberOfLines={1}
+                  >
                     {route.name}
                   </Typography>
                 </View>
@@ -324,28 +470,58 @@ export default function RouteOptionsScreen() {
                 </View>
               </View>
 
-              {/* Time display */}
-              <View style={{ marginTop: 10, marginBottom: 12 }}>
-                <Typography style={{ fontSize: 24, fontWeight: '800', color: '#18231D' }}>
-                  {route.durationMins} min
-                </Typography>
-                <Typography style={{ fontSize: 12, color: '#69766E', marginTop: 2 }}>
-                  {route.startTime} – {route.endTime}
-                </Typography>
+              {/* Time display & distance badge */}
+              <View style={{ marginTop: 10, marginBottom: 12, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                <View>
+                  <Typography style={{ fontSize: 24, fontWeight: '800', color: '#18231D' }}>
+                    {formattedDuration}
+                  </Typography>
+                  <Typography style={{ fontSize: 12, color: '#69766E', marginTop: 2 }}>
+                    {route.startTime} – {route.endTime}
+                  </Typography>
+                </View>
+
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Typography style={{ fontSize: 14, fontWeight: '700', color: '#1E6B3F' }}>
+                    {route.distanceKm} km
+                  </Typography>
+                  <Typography style={{ fontSize: 13, fontWeight: '600', color: '#18231D', marginTop: 2 }}>
+                    ₹{route.costINR}
+                  </Typography>
+                </View>
               </View>
+
+              {/* View Timetable button if Train */}
+              {isTrainRoute && (
+                <Pressable
+                  onPress={() => {
+                    const match = route.name.match(/\b\d{5}\b/);
+                    const trainNum = match ? match[0] : '17005';
+                    handleLoadTrainSchedule(trainNum);
+                    setTrainTab('schedule');
+                    setTrainModalOpen(true);
+                  }}
+                  style={styles.trainTimetableBtn}
+                >
+                  <Clock size={13} color="#1E6B3F" style={{ marginRight: 5 }} />
+                  <Typography style={{ fontSize: 12, fontWeight: '700', color: '#1E6B3F' }}>
+                    View Train Halts & Timetable
+                  </Typography>
+                </Pressable>
+              )}
 
               {/* Bottom Legs Breakdown & Select Button */}
               <View style={styles.cardFooter}>
                 {/* Legs breakdown */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, flex: 1, flexWrap: 'wrap' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1, flexWrap: 'wrap' }}>
                   {route.legs.map((leg, li) => (
                     <View key={li} style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <View style={{ marginRight: 6 }}>{getLegIcon(leg.mode)}</View>
                       <View>
                         <Typography style={{ fontSize: 11, fontWeight: '700', color: '#18231D' }}>
-                          {leg.durationMins} min
+                          {formatDuration(leg.durationMins)}
                         </Typography>
-                        <Typography style={{ fontSize: 10, color: '#69766E' }}>
+                        <Typography style={{ fontSize: 10, color: '#69766E' }} numberOfLines={1}>
                           {leg.label}
                         </Typography>
                       </View>
@@ -378,7 +554,196 @@ export default function RouteOptionsScreen() {
         })}
       </ScrollView>
 
-      {/* Sort selection dialog */}
+      {/* 7. Indian Railways Schedule & Timetable Explorer Modal */}
+      <Modal visible={trainModalOpen} transparent animationType="slide" onRequestClose={() => setTrainModalOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(24,35,29,0.5)', justifyContent: 'flex-end' }}>
+          <View style={styles.trainModalSheet}>
+            {/* Modal Header */}
+            <View style={styles.trainModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Train size={22} color="#1E6B3F" />
+                <Typography style={{ fontSize: 17, fontWeight: '800', color: '#18231D', marginLeft: 8 }}>
+                  Indian Railways Schedule
+                </Typography>
+              </View>
+              <Pressable onPress={() => setTrainModalOpen(false)} hitSlop={10}>
+                <X size={20} color="#69766E" />
+              </Pressable>
+            </View>
+
+            {/* Modal Tabs */}
+            <View style={styles.trainTabRow}>
+              <Pressable
+                onPress={() => setTrainTab('between')}
+                style={[styles.trainTabBtn, trainTab === 'between' && styles.trainTabBtnActive]}
+              >
+                <Typography style={[styles.trainTabText, trainTab === 'between' && styles.trainTabTextActive]}>
+                  Trains on Route
+                </Typography>
+              </Pressable>
+              <Pressable
+                onPress={() => setTrainTab('schedule')}
+                style={[styles.trainTabBtn, trainTab === 'schedule' && styles.trainTabBtnActive]}
+              >
+                <Typography style={[styles.trainTabText, trainTab === 'schedule' && styles.trainTabTextActive]}>
+                  Search Any Train
+                </Typography>
+              </Pressable>
+            </View>
+
+            {/* Tab 1: Trains on this route (Raipur -> Bokaro etc.) */}
+            {trainTab === 'between' && (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                <Typography style={{ fontSize: 13, fontWeight: '700', color: '#143825', marginBottom: 8 }}>
+                  Trains connecting {originName} ➔ {destName} ({displayedDist} km):
+                </Typography>
+
+                {trainsBetweenList.length === 0 ? (
+                  <View style={{ padding: 16, alignItems: 'center' }}>
+                    <Typography style={{ fontSize: 13, color: '#69766E' }}>
+                      Finding direct trains between stations...
+                    </Typography>
+                  </View>
+                ) : (
+                  trainsBetweenList.map((t) => (
+                    <View key={t.trainNumber} style={styles.trainItemCard}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={{ flex: 1 }}>
+                          <Typography style={{ fontSize: 15, fontWeight: '800', color: '#18231D' }}>
+                            {t.trainNumber} - {t.trainName}
+                          </Typography>
+                          <Typography style={{ fontSize: 12, color: '#69766E', marginTop: 2 }}>
+                            {t.fromStationName} ({t.departureTime}) ➔ {t.toStationName} ({t.arrivalTime})
+                          </Typography>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Typography style={{ fontSize: 14, fontWeight: '700', color: '#1E6B3F' }}>
+                            {t.durationFormatted}
+                          </Typography>
+                          <Typography style={{ fontSize: 11, color: '#69766E' }}>
+                            {t.distanceKm} km
+                          </Typography>
+                        </View>
+                      </View>
+
+                      {/* Days & Fare */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#EFF3F0' }}>
+                        <Typography style={{ fontSize: 11, color: '#4E6A58' }}>
+                          Runs: {t.runningDays.join(', ')}
+                        </Typography>
+                        <Typography style={{ fontSize: 12, fontWeight: '700', color: '#143825' }}>
+                          ₹{t.fares.sleeper || 395} (SL) • ₹{t.fares.thirdAc || 1060} (3AC)
+                        </Typography>
+                      </View>
+
+                      {/* Timetable view button */}
+                      <Pressable
+                        onPress={() => {
+                          handleLoadTrainSchedule(t.trainNumber);
+                          setTrainTab('schedule');
+                        }}
+                        style={{ marginTop: 8, alignSelf: 'flex-start' }}
+                      >
+                        <Typography style={{ fontSize: 12, fontWeight: '700', color: '#1E6B3F' }}>
+                          View Timetable Halts ➔
+                        </Typography>
+                      </Pressable>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+
+            {/* Tab 2: Search Any Train across India by Number */}
+            {trainTab === 'schedule' && (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {/* Search Bar */}
+                <View style={styles.trainSearchBox}>
+                  <Search size={16} color="#69766E" style={{ marginRight: 8 }} />
+                  <TextInput
+                    placeholder="Enter any Train No. (e.g. 17005, 17321, 12001)"
+                    placeholderTextColor="#8C9A91"
+                    value={trainQuery}
+                    onChangeText={setTrainQuery}
+                    style={{ flex: 1, fontSize: 14, color: '#18231D' }}
+                    keyboardType="number-pad"
+                  />
+                  <Pressable
+                    onPress={() => handleLoadTrainSchedule(trainQuery)}
+                    style={styles.searchTrainSubmitBtn}
+                  >
+                    <Typography style={{ fontSize: 12, fontWeight: '700', color: '#FFFFFF' }}>
+                      Get Stops
+                    </Typography>
+                  </Pressable>
+                </View>
+
+                {trainScheduleLoading && (
+                  <View style={{ padding: 20, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#1E6B3F" />
+                    <Typography style={{ fontSize: 13, color: '#69766E', marginTop: 6 }}>
+                      Fetching Indian Railways timetable...
+                    </Typography>
+                  </View>
+                )}
+
+                {selectedTrainSchedule && !trainScheduleLoading && (
+                  <View style={{ marginTop: 10 }}>
+                    {/* Train Info Card */}
+                    <View style={styles.trainSummaryBanner}>
+                      <Typography style={{ fontSize: 16, fontWeight: '800', color: '#143825' }}>
+                        {selectedTrainSchedule.trainNumber} - {selectedTrainSchedule.trainName}
+                      </Typography>
+                      <Typography style={{ fontSize: 12, color: '#3A5243', marginTop: 2 }}>
+                        {selectedTrainSchedule.fromStationName} ➔ {selectedTrainSchedule.toStationName}
+                      </Typography>
+                      <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+                        <Typography style={{ fontSize: 11, fontWeight: '600', color: '#1E6B3F' }}>
+                          Distance: {selectedTrainSchedule.totalDistanceKm} km
+                        </Typography>
+                        <Typography style={{ fontSize: 11, fontWeight: '600', color: '#1E6B3F' }}>
+                          Duration: {formatDuration(selectedTrainSchedule.totalDurationMins)}
+                        </Typography>
+                        <Typography style={{ fontSize: 11, fontWeight: '600', color: '#1E6B3F' }}>
+                          Type: {selectedTrainSchedule.trainType}
+                        </Typography>
+                      </View>
+                    </View>
+
+                    {/* Timeline stops */}
+                    <Typography style={{ fontSize: 13, fontWeight: '700', color: '#18231D', marginTop: 12, marginBottom: 8 }}>
+                      Route Stops ({selectedTrainSchedule.stops.length} stations):
+                    </Typography>
+
+                    {selectedTrainSchedule.stops.map((stop, sIdx) => (
+                      <View key={sIdx} style={styles.stopRow}>
+                        <View style={styles.stopNumberCircle}>
+                          <Typography style={{ fontSize: 10, fontWeight: '700', color: '#1E6B3F' }}>
+                            {stop.stopNumber}
+                          </Typography>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Typography style={{ fontSize: 13, fontWeight: '700', color: '#18231D' }}>
+                            {stop.stationName} ({stop.stationCode})
+                          </Typography>
+                          <Typography style={{ fontSize: 11, color: '#69766E' }}>
+                            Arr: {stop.arrivalTime} | Dep: {stop.departureTime} ({stop.haltMinutes}m halt)
+                          </Typography>
+                        </View>
+                        <Typography style={{ fontSize: 11, fontWeight: '600', color: '#5A6D61' }}>
+                          {stop.distanceKm} km
+                        </Typography>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 8. Sort selection dialog */}
       <Modal visible={sortModalOpen} transparent animationType="fade">
         <Pressable
           onPress={() => setSortModalOpen(false)}
@@ -418,14 +783,14 @@ export default function RouteOptionsScreen() {
         </Pressable>
       </Modal>
 
-      {/* Booking confirmation modal */}
+      {/* 9. Booking confirmation modal */}
       {selectedRoute && (
         <Modal visible={confirmModalOpen} transparent animationType="slide">
           <View style={{ flex: 1, backgroundColor: 'rgba(24,35,29,0.5)', justifyContent: 'flex-end' }}>
             <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 36 }}>
               <View style={{ alignItems: 'center', marginBottom: 16 }}>
                 <CheckCircle2 size={44} color="#218653" />
-                <Typography style={{ fontSize: 18, fontWeight: '800', color: '#18231D', marginTop: 10 }}>
+                <Typography style={{ fontSize: 18, fontWeight: '800', color: '#18231D', marginTop: 10, textAlign: 'center' }}>
                   Route Selected: {selectedRoute.name}
                 </Typography>
                 <Typography style={{ fontSize: 13, color: '#69766E', marginTop: 4 }}>
@@ -435,8 +800,12 @@ export default function RouteOptionsScreen() {
 
               <View style={{ backgroundColor: '#EFF8F2', borderRadius: 16, padding: 14, marginBottom: 18 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Typography style={{ fontSize: 13, color: '#5A6D61' }}>Journey Distance:</Typography>
+                  <Typography style={{ fontSize: 14, fontWeight: '700', color: '#143825' }}>{selectedRoute.distanceKm} km</Typography>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Typography style={{ fontSize: 13, color: '#5A6D61' }}>Estimated Duration:</Typography>
-                  <Typography style={{ fontSize: 14, fontWeight: '700', color: '#143825' }}>{selectedRoute.durationMins} mins ({selectedRoute.startTime} – {selectedRoute.endTime})</Typography>
+                  <Typography style={{ fontSize: 14, fontWeight: '700', color: '#143825' }}>{formatDuration(selectedRoute.durationMins)} ({selectedRoute.startTime} – {selectedRoute.endTime})</Typography>
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Typography style={{ fontSize: 13, color: '#5A6D61' }}>Eco Carbon Rating:</Typography>
@@ -507,7 +876,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   pinCol: {
     width: 14,
@@ -539,6 +908,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F6F4',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  trainScheduleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EAF6EE',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D4EAD9',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  trainIconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewSchedulePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E6B3F',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
   filterRow: {
     flexDirection: 'row',
@@ -609,6 +1005,16 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 14,
   },
+  trainTimetableBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F8F3',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -639,5 +1045,98 @@ const styles = StyleSheet.create({
   },
   selectBtnTextOutline: {
     color: '#1B5E39',
+  },
+  trainModalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    padding: 20,
+    paddingBottom: 32,
+    maxHeight: '85%',
+  },
+  trainModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E6ECE8',
+    paddingBottom: 14,
+  },
+  trainTabRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F5F2',
+    borderRadius: 12,
+    padding: 3,
+    marginVertical: 12,
+  },
+  trainTabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  trainTabBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  trainTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#69766E',
+  },
+  trainTabTextActive: {
+    color: '#143825',
+    fontWeight: '700',
+  },
+  trainItemCard: {
+    backgroundColor: '#F8FAF9',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5EDE7',
+    padding: 12,
+    marginBottom: 10,
+  },
+  trainSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F8F6',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    height: 46,
+    borderWidth: 1,
+    borderColor: '#E2EAE5',
+    marginBottom: 12,
+  },
+  searchTrainSubmitBtn: {
+    backgroundColor: '#1E6B3F',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  trainSummaryBanner: {
+    backgroundColor: '#EFF8F2',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D4EAD9',
+    padding: 12,
+  },
+  stopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F4F1',
+  },
+  stopNumberCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#EAF6EE',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

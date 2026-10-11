@@ -4,6 +4,7 @@ import { transitController } from '../controllers/transit.controller.js';
 import { impactController } from '../controllers/impact.controller.js';
 import { healthController } from '../controllers/health.controller.js';
 import { placesController } from '../controllers/places.controller.js';
+import { trainsController } from '../controllers/trains.controller.js';
 
 const router = Router();
 
@@ -14,6 +15,12 @@ router.get('/places/geocode', (req, res) => placesController.geocode(req, res));
 // Route Comparison Engine
 router.post('/routes/compare', (req, res) => routesController.compare(req, res));
 
+// Indian Railways Trains & Schedules API
+router.get('/trains/search', (req, res) => trainsController.search(req, res));
+router.get('/trains/schedule/:trainNumber', (req, res) => trainsController.getSchedule(req, res));
+router.get('/trains/between', (req, res) => trainsController.betweenStations(req, res));
+router.get('/trains/stations', (req, res) => trainsController.searchStations(req, res));
+router.get('/trains/live/:trainNumber', (req, res) => trainsController.liveStatus(req, res));
 
 // Public Transit (Metro & Bus)
 router.get('/transit/stations', (req, res) => transitController.getStations(req, res));

@@ -4,7 +4,9 @@ export type TravelMode =
   | 'motorbike'
   | 'auto-rickshaw'
   | 'local-train'
+  | 'train'
   | 'metro'
+  | 'bus'
   | 'taxi'
   | 'carpool'
   | 'mixed';
@@ -43,7 +45,7 @@ export interface FareBreakdown {
 }
 
 export interface RouteLeg {
-  mode: 'bus' | 'walk' | 'carpool' | 'bike' | 'metro';
+  mode: 'bus' | 'walk' | 'carpool' | 'bike' | 'metro' | 'train';
   label: string;
   durationMins: number;
 }
