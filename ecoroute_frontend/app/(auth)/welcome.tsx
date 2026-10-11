@@ -1,9 +1,9 @@
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button } from '../../components/ui/Button';
 import { Typography } from '../../components/ui/Typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Leaf, ShieldCheck, Zap, TrendingDown } from 'lucide-react-native';
+import { ShieldCheck, Zap, TrendingDown } from 'lucide-react-native';
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -11,20 +11,13 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAF8', paddingHorizontal: 24, justifyContent: 'space-between' }}>
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{
-          width: 96,
-          height: 96,
-          backgroundColor: '#E8F5EE',
-          borderRadius: 48,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 20,
-          borderWidth: 1,
-          borderColor: '#C3E6D2'
-        }}>
-          <Leaf size={48} color="#218653" />
-        </View>
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={{ width: 110, height: 110, marginBottom: 14 }}
+          resizeMode="contain"
+        />
         <Typography variant="h1" style={{ textAlign: 'center', marginBottom: 6 }}>EcoRoute</Typography>
+
         <Typography variant="body" style={{ textAlign: 'center', color: '#69766E', marginBottom: 28, paddingHorizontal: 20 }}>
           Smarter, greener, and cheaper commute for Pune.
         </Typography>
